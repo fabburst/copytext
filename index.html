@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TextShare - Échange de texte simple</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root {
             --primary-color: #4b6cb7;
@@ -123,12 +124,27 @@
             margin-top: 1rem;
             position: relative;
         }
+        
+        #qrcode {
+            padding: 1rem;
+            background: white;
+            border-radius: 10px;
+            display: inline-block;
+        }
+        
+        #qrcode img {
+            display: block;
+            margin: 0 auto;
+        }
 
         .code-text {
             font-family: monospace;
             overflow-wrap: break-word;
             word-break: break-all;
             margin-bottom: 0.5rem;
+            font-size: 2rem;
+            text-align: center;
+            letter-spacing: 5px;
         }
 
         .instructions {
@@ -192,6 +208,12 @@
             cursor: pointer;
         }
 
+        #codeInput {
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 5px;
+        }
+
         @media (max-width: 768px) {
             .button-group {
                 flex-direction: column;
@@ -213,7 +235,7 @@
 <body>
     <header>
         <h1>TextShare</h1>
-        <p class="subtitle">Échangez et sauvegardez du texte simplement avec des codes mémorisables</p>
+        <p class="subtitle">Échangez du texte avec un code simple</p>
     </header>
 
     <main>
@@ -224,11 +246,11 @@
                 <button id="generateBtn">
                     <i>🔑</i> Générer un code
                 </button>
-                <button id="copyCodeBtn" disabled>
-                    <i>📋</i> Copier le code
+                <button id="generateQrBtn">
+                    <i>📱</i> Générer QR Code
                 </button>
                 <button id="saveBtn" class="success">
-                    <i>💾</i> Sauvegarder localement
+                    <i>💾</i> Sauvegarder
                 </button>
                 <button id="clearBtn" class="warning">
                     <i>🗑️</i> Effacer
@@ -238,7 +260,7 @@
             <div id="loadCodeContainer" style="width: 100%;">
                 <label for="codeInput">Entrez un code pour charger un texte:</label>
                 <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-                    <input type="text" id="codeInput" class="text-area" style="min-height: auto; margin-bottom: 0;">
+                    <input type="text" id="codeInput" class="text-area" style="min-height: auto; margin-bottom: 0;" maxlength="3" placeholder="ABC">
                     <button id="loadBtn">
                         <i>📥</i> Charger
                     </button>
@@ -249,37 +271,47 @@
                 <div class="code-text" id="generatedCode"></div>
             </div>
 
+                            <div id="qrContainer" style="display: none; text-align: center; margin-top: 1rem;">
+                <h3>QR Code pour partager</h3>
+                <p>Scannez ce QR code avec votre smartphone pour ouvrir directement le site avec le texte</p>
+                <p><strong>Code: <span id="qrCodeText" style="font-size: 24px; letter-spacing: 3px;"></span></strong></p>
+                <p class="qr-url" style="font-size: 12px; color: #666; word-break: break-all; margin-top: 5px;"></p>
+                <div id="qrcode" style="margin: 1rem auto;"></div>
+                <button id="downloadQrBtn" class="success">
+                    <i>📥</i> Télécharger le QR Code
+                </button>
+            </div>
+
             <div id="statusMessage" class="status"></div>
 
             <div class="instructions">
                 <h3>Comment ça marche :</h3>
                 <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                    <li>Copiez votre texte dans la zone de texte ci-dessus</li>
-                    <li>Cliquez sur "Générer un code" pour créer un code mémorisable (trois mots séparés par des tirets)</li>
-                    <li>Notez ou mémorisez ce code simple et partagez-le</li>
-                    <li>Sur un autre appareil, saisissez le code dans la zone "Entrez un code" et cliquez sur "Charger"</li>
-                    <li>Remarque : les codes sont stockés localement sur chaque appareil, et ne fonctionnent que sur le même navigateur</li>
-                    <li>Vous pouvez aussi sauvegarder des textes localement pour y accéder plus tard sur le même appareil</li>
+                    <li>Écrivez ou copiez votre texte dans la zone ci-dessus</li>
+                    <li>Cliquez sur "Générer un code" pour obtenir un code de 3 caractères</li>
+                    <li>Pour partager via smartphone, utilisez le bouton "Générer QR Code"</li>
+                    <li>Scannez le QR code pour ouvrir directement le site avec le texte chargé</li>
+                    <li>Si vous préférez, notez simplement le code à 3 caractères</li>
                 </ol>
             </div>
         </div>
 
         <div class="container" id="savedTextsContainer" style="display: none;">
-            <h2>Textes sauvegardés localement</h2>
-            <p>Cliquez sur un texte pour le charger dans l'éditeur</p>
+            <h2>Textes sauvegardés</h2>
+            <p>Cliquez sur un texte pour le charger</p>
             <div id="savedTexts"></div>
         </div>
     </main>
 
     <footer>
-        <p>TextShare © 2025 - Accédez à vos textes depuis n'importe où, sans compte</p>
+        <p>TextShare © 2025 - Échange de texte simple</p>
     </footer>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const textInput = document.getElementById('textInput');
             const generateBtn = document.getElementById('generateBtn');
-            const copyCodeBtn = document.getElementById('copyCodeBtn');
+            const generateQrBtn = document.getElementById('generateQrBtn');
             const saveBtn = document.getElementById('saveBtn');
             const clearBtn = document.getElementById('clearBtn');
             const loadBtn = document.getElementById('loadBtn');
@@ -289,214 +321,208 @@
             const statusMessage = document.getElementById('statusMessage');
             const savedTexts = document.getElementById('savedTexts');
             const savedTextsContainer = document.getElementById('savedTextsContainer');
+            const qrContainer = document.getElementById('qrContainer');
+            const downloadQrBtn = document.getElementById('downloadQrBtn');
 
-            // Charger les textes sauvegardés lors du chargement de la page
+            // Charger les textes sauvegardés
             loadSavedTexts();
+            
+            // Vérifier si un code est présent dans l'URL (pour le QR code)
+            function checkUrlForCode() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                
+                if (code) {
+                    // Tenter de charger le texte correspondant au code
+                    const text = localStorage.getItem(`text_${code}`);
+                    if (text) {
+                        textInput.value = text;
+                        showStatus('Texte chargé depuis QR Code!', 'success');
+                    } else {
+                        showStatus('Code QR valide mais texte non trouvé sur cet appareil', 'error');
+                    }
+                }
+            }
+            
+            // Vérifier l'URL au chargement
+            checkUrlForCode();
 
-            // Gérer la génération du code
+            // Générer un code
             generateBtn.addEventListener('click', function() {
                 const text = textInput.value.trim();
                 if (!text) {
-                    showStatus('Veuillez entrer du texte avant de générer un code', 'error');
+                    showStatus('Veuillez entrer du texte', 'error');
                     return;
                 }
 
                 try {
-                    // Crée un hash court du contenu pour l'identification
-                    const hash = createShortHash(text);
+                    // Générer un code simple de 3 caractères (lettres et chiffres)
+                    const code = generateSimpleCode();
                     
-                    // Génère un identifiant mémorisable à base de mots
-                    const wordId = generateShortId();
+                    // Sauvegarder le texte avec ce code
+                    localStorage.setItem(`text_${code}`, text);
                     
-                    // Stocke le texte dans le localStorage avec une référence temporaire
-                    const storageKey = `shared_text_${hash}`;
-                    localStorage.setItem(storageKey, text);
-                    
-                    // On associe l'ID mémorisable avec le hash
-                    const codeMapKey = 'code_mapping';
-                    let codeMap = JSON.parse(localStorage.getItem(codeMapKey)) || {};
-                    codeMap[wordId] = hash;
-                    
-                    // On limite le nombre de codes stockés à 50
-                    const codeKeys = Object.keys(codeMap);
-                    if (codeKeys.length > 50) {
-                        delete codeMap[codeKeys[0]];
-                    }
-                    
-                    localStorage.setItem(codeMapKey, JSON.stringify(codeMap));
-                    
-                    // Combine l'ID et le hash pour générer un code mémorisable
-                    const fullCode = wordId;
-                    
-                    // Affiche le code
-                    generatedCode.textContent = fullCode;
+                    // Afficher le code
+                    generatedCode.textContent = code;
                     codeContainer.style.display = 'block';
-                    copyCodeBtn.disabled = false;
                     
-                    showStatus('Code généré avec succès!', 'success');
+                    showStatus('Code généré: ' + code, 'success');
                 } catch (error) {
-                    console.error('Erreur lors de la génération du code:', error);
-                    showStatus('Erreur lors de la génération du code. Vérifiez que votre texte ne contient pas de caractères spéciaux incompatibles.', 'error');
+                    console.error('Erreur:', error);
+                    showStatus('Erreur lors de la génération du code', 'error');
                 }
             });
 
-            // Gérer la copie du code
-            copyCodeBtn.addEventListener('click', function() {
-                const codeText = generatedCode.textContent;
-                navigator.clipboard.writeText(codeText).then(function() {
-                    showStatus('Code copié dans le presse-papiers!', 'success');
-                }, function() {
-                    showStatus('Impossible de copier le code', 'error');
-                });
-            });
-
-            // Gérer le chargement d'un texte à partir d'un code
+            // Charger un texte avec un code
             loadBtn.addEventListener('click', function() {
-                const code = codeInput.value.trim();
-                if (!code) {
-                    showStatus('Veuillez entrer un code', 'error');
+                const code = codeInput.value.trim().toUpperCase();
+                if (!code || code.length !== 3) {
+                    showStatus('Entrez un code de 3 caractères', 'error');
                     return;
                 }
 
-                try {
-                    // Récupère le mapping de codes
-                    const codeMapKey = 'code_mapping';
-                    const codeMap = JSON.parse(localStorage.getItem(codeMapKey)) || {};
-                    
-                    // Vérifie si le code existe dans le mapping
-                    if (!codeMap[code]) {
-                        throw new Error('Code introuvable');
-                    }
-                    
-                    // Récupère le hash associé au code
-                    const hash = codeMap[code];
-                    
-                    // Récupère le texte à partir du hash
-                    const storageKey = `shared_text_${hash}`;
-                    const text = localStorage.getItem(storageKey);
-                    
-                    if (!text) {
-                        throw new Error('Texte introuvable');
-                    }
-                    
-                    // Affiche le texte dans la zone de texte
+                const text = localStorage.getItem(`text_${code}`);
+                if (text) {
                     textInput.value = text;
-                    showStatus('Texte chargé avec succès!', 'success');
-                } catch (error) {
-                    showStatus('Code invalide ou expiré', 'error');
-                    console.error(error);
+                    showStatus('Texte chargé!', 'success');
+                } else {
+                    showStatus('Code invalide ou texte introuvable', 'error');
                 }
             });
 
-            // Gérer la sauvegarde locale
+            // Sauvegarder localement
             saveBtn.addEventListener('click', function() {
                 const text = textInput.value.trim();
                 if (!text) {
-                    showStatus('Veuillez entrer du texte avant de sauvegarder', 'error');
+                    showStatus('Veuillez entrer du texte', 'error');
                     return;
                 }
 
-                // Sauvegarde le texte dans le localStorage
                 saveTextLocally(text);
-                showStatus('Texte sauvegardé localement!', 'success');
-                loadSavedTexts(); // Rafraîchit la liste des textes sauvegardés
+                showStatus('Texte sauvegardé!', 'success');
+                loadSavedTexts();
             });
 
-            // Gérer l'effacement du texte
+            // Générer QR Code
+            generateQrBtn.addEventListener('click', function() {
+                const text = textInput.value.trim();
+                if (!text) {
+                    showStatus('Veuillez entrer du texte', 'error');
+                    return;
+                }
+
+                try {
+                    // Générer un code simple
+                    const code = generateSimpleCode();
+                    
+                    // Sauvegarder le texte avec ce code
+                    localStorage.setItem(`text_${code}`, text);
+                    
+                    // Créer l'URL avec le site déployé et le code en paramètre
+                    const deployedUrl = "https://copytext-tau.vercel.app";
+                    const urlWithParams = `${deployedUrl}?code=${code}`;
+                    
+                    console.log("URL pour QR code:", urlWithParams);
+                    
+                    // Afficher le QR Code
+                    const qrcodeElement = document.getElementById('qrcode');
+                    qrcodeElement.innerHTML = '';
+                    
+                    // Générer le QR code avec l'URL complète
+                    new QRCode(qrcodeElement, {
+                        text: urlWithParams,
+                        width: 200,
+                        height: 200,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H  // Niveau de correction d'erreur élevé pour l'URL
+                    });
+                    
+                    qrContainer.style.display = 'block';
+                    showStatus('QR Code généré!', 'success');
+                    
+                    // Afficher aussi le code texte et l'URL
+                    generatedCode.textContent = code;
+                    document.getElementById('qrCodeText').textContent = code;
+                    document.querySelector('.qr-url').textContent = urlWithParams;
+                    codeContainer.style.display = 'block';
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    showStatus('Erreur lors de la génération du QR Code', 'error');
+                }
+            });
+            
+            // Télécharger QR Code
+            downloadQrBtn.addEventListener('click', function() {
+                const qrcodeElement = document.getElementById('qrcode');
+                if (qrcodeElement.querySelector('img')) {
+                    const qrImage = qrcodeElement.querySelector('img').src;
+                    
+                    const link = document.createElement('a');
+                    link.href = qrImage;
+                    link.download = 'textshare-qrcode.png';
+                    link.click();
+                    
+                    showStatus('QR Code téléchargé!', 'success');
+                }
+            });
+
+            // Effacer le texte
             clearBtn.addEventListener('click', function() {
                 textInput.value = '';
                 codeContainer.style.display = 'none';
+                qrContainer.style.display = 'none';
                 codeInput.value = '';
                 showStatus('Texte effacé', 'success');
             });
 
-            // Fonction pour générer un ID mémorisable à base de mots
-            function generateShortId() {
-                // Liste de mots simples et courts pour la mémorisation
-                const words = [
-                    // Couleurs
-                    "rouge", "bleu", "vert", "noir", "blanc", "jaune", "rose", "gris", "orange", "violet",
-                    // Animaux
-                    "chat", "chien", "lion", "tigre", "ours", "loup", "aigle", "dauphin", "poisson", "renard",
-                    // Fruits
-                    "pomme", "poire", "orange", "banane", "fraise", "raisin", "citron", "kiwi", "melon", "prune",
-                    // Objets
-                    "livre", "table", "porte", "tasse", "crayon", "lampe", "clef", "montre", "photo", "verre",
-                    // Nature
-                    "arbre", "fleur", "lac", "mer", "ciel", "nuage", "pluie", "soleil", "lune", "neige",
-                    // Nombres (écrits)
-                    "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix"
-                ];
-                
-                // Sélectionne 3 mots aléatoires
-                let result = [];
+            // Fonction pour générer un code simple de 3 caractères
+            function generateSimpleCode() {
+                const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let result = '';
                 for (let i = 0; i < 3; i++) {
-                    const randomIndex = Math.floor(Math.random() * words.length);
-                    result.push(words[randomIndex]);
+                    result += characters.charAt(Math.floor(Math.random() * characters.length));
                 }
-                
-                // Joindre avec des tirets
-                return result.join("-");
-            }
-            
-            // Fonction pour créer un hash court à partir d'un texte
-            function createShortHash(text) {
-                let hash = 0;
-                if (text.length === 0) return hash.toString(36);
-                
-                for (let i = 0; i < text.length; i++) {
-                    const char = text.charCodeAt(i);
-                    hash = ((hash << 5) - hash) + char;
-                    hash = hash & hash; // Convertit en entier 32 bits
-                }
-                
-                // Convertit en base36 (0-9, a-z) pour raccourcir et ajoute un timestamp pour l'unicité
-                return Math.abs(hash).toString(36) + Date.now().toString(36).slice(-4);
+                return result;
             }
 
-            // Fonction pour afficher un message de statut
+            // Fonction pour afficher un message
             function showStatus(message, type) {
                 statusMessage.textContent = message;
                 statusMessage.className = 'status';
                 statusMessage.classList.add(type);
                 statusMessage.style.display = 'block';
                 
-                // Cache le message après 3 secondes
                 setTimeout(() => {
                     statusMessage.style.display = 'none';
                 }, 3000);
             }
 
-            // Fonction pour sauvegarder le texte localement
+            // Fonction pour sauvegarder localement
             function saveTextLocally(text) {
-                // Récupère les textes déjà sauvegardés
-                let savedTextsArray = JSON.parse(localStorage.getItem('savedTexts')) || [];
+                let savedTextsArray = JSON.parse(localStorage.getItem('saved_texts')) || [];
                 
-                // Ajoute le nouveau texte avec un timestamp
                 savedTextsArray.push({
                     id: Date.now(),
                     text: text,
                     date: new Date().toLocaleString()
                 });
                 
-                // Limite à 10 textes sauvegardés
                 if (savedTextsArray.length > 10) {
                     savedTextsArray = savedTextsArray.slice(-10);
                 }
                 
-                // Sauvegarde dans le localStorage
-                localStorage.setItem('savedTexts', JSON.stringify(savedTextsArray));
+                localStorage.setItem('saved_texts', JSON.stringify(savedTextsArray));
             }
 
             // Fonction pour charger les textes sauvegardés
             function loadSavedTexts() {
-                const savedTextsArray = JSON.parse(localStorage.getItem('savedTexts')) || [];
+                const savedTextsArray = JSON.parse(localStorage.getItem('saved_texts')) || [];
                 
                 if (savedTextsArray.length > 0) {
                     savedTextsContainer.style.display = 'block';
                     savedTexts.innerHTML = '';
                     
-                    // Affiche les textes sauvegardés du plus récent au plus ancien
                     savedTextsArray.slice().reverse().forEach(item => {
                         const truncatedText = item.text.length > 100 ? 
                             item.text.substring(0, 100) + '...' : 
@@ -535,7 +561,6 @@
                         
                         savedTexts.appendChild(savedItem);
                         
-                        // Event listeners
                         preview.addEventListener('click', function() {
                             textInput.value = item.text;
                             showStatus('Texte chargé!', 'success');
@@ -555,14 +580,22 @@
                 }
             }
 
-            // Fonction pour supprimer un texte sauvegardé
+            // Fonction pour supprimer un texte
             function deleteLocalText(id) {
-                let savedTextsArray = JSON.parse(localStorage.getItem('savedTexts')) || [];
+                let savedTextsArray = JSON.parse(localStorage.getItem('saved_texts')) || [];
                 savedTextsArray = savedTextsArray.filter(item => item.id !== id);
-                localStorage.setItem('savedTexts', JSON.stringify(savedTextsArray));
+                localStorage.setItem('saved_texts', JSON.stringify(savedTextsArray));
                 loadSavedTexts();
                 showStatus('Texte supprimé!', 'success');
             }
+
+            // Limiter la saisie à 3 caractères et convertir en majuscules
+            codeInput.addEventListener('input', function() {
+                this.value = this.value.toUpperCase();
+                if (this.value.length > 3) {
+                    this.value = this.value.slice(0, 3);
+                }
+            });
         });
     </script>
 </body>
