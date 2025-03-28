@@ -268,14 +268,15 @@
             </div>
 
             <div id="codeContainer" class="code-container" style="display: none;">
+                <h3>Code généré</h3>
                 <div class="code-text" id="generatedCode"></div>
+                <p style="color: #666; font-size: 14px; margin-top: 10px;">Partagez le code ou l'URL complète qui intègre votre texte</p>
             </div>
 
                             <div id="qrContainer" style="display: none; text-align: center; margin-top: 1rem;">
                 <h3>QR Code pour partager</h3>
-                <p>Scannez ce QR code avec votre smartphone pour ouvrir directement le site avec le texte</p>
-                <p><strong>Code: <span id="qrCodeText" style="font-size: 24px; letter-spacing: 3px;"></span></strong></p>
-                <p class="qr-url" style="font-size: 12px; color: #666; word-break: break-all; margin-top: 5px;"></p>
+                <p>Scannez ce QR code avec votre smartphone pour ouvrir directement le texte</p>
+                <p style="color: #666; font-size: 12px; margin-top: 5px;">Le texte est directement encodé dans le QR code (limité à 500 caractères)</p>
                 <div id="qrcode" style="margin: 1rem auto;"></div>
                 <button id="downloadQrBtn" class="success">
                     <i>📥</i> Télécharger le QR Code
@@ -288,10 +289,10 @@
                 <h3>Comment ça marche :</h3>
                 <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
                     <li>Écrivez ou copiez votre texte dans la zone ci-dessus</li>
-                    <li>Cliquez sur "Générer un code" pour obtenir un code de 3 caractères</li>
-                    <li>Pour partager via smartphone, utilisez le bouton "Générer QR Code"</li>
-                    <li>Scannez le QR code pour ouvrir directement le site avec le texte chargé</li>
-                    <li>Si vous préférez, notez simplement le code à 3 caractères</li>
+                    <li>Cliquez sur "Générer un code" pour obtenir un code et une URL de partage</li>
+                    <li>Partagez l'URL complète ou utilisez le QR code pour un partage plus rapide</li>
+                    <li>Le texte est directement inclus dans l'URL - pas besoin de serveur</li>
+                    <li>Pour les textes plus longs (>1000 caractères), seul le début sera inclus</li>
                 </ol>
             </div>
         </div>
@@ -327,25 +328,39 @@
             // Charger les textes sauvegardés
             loadSavedTexts();
             
-            // Vérifier si un code est présent dans l'URL (pour le QR code)
-            function checkUrlForCode() {
+            // Vérifier si un texte est présent dans l'URL (pour le QR code)
+            function checkUrlForText() {
                 const urlParams = new URLSearchParams(window.location.search);
-                const code = urlParams.get('code');
+                const encodedText = urlParams.get('text');
                 
-                if (code) {
-                    // Tenter de charger le texte correspondant au code
-                    const text = localStorage.getItem(`text_${code}`);
-                    if (text) {
+                if (encodedText) {
+                    try {
+                        // Décoder le texte de l'URL
+                        const text = decodeURIComponent(encodedText);
                         textInput.value = text;
-                        showStatus('Texte chargé depuis QR Code!', 'success');
-                    } else {
-                        showStatus('Code QR valide mais texte non trouvé sur cet appareil', 'error');
+                        showStatus('Texte chargé depuis l\'URL!', 'success');
+                    } catch (error) {
+                        console.error('Erreur de décodage:', error);
+                        showStatus('Erreur lors du décodage du texte', 'error');
+                    }
+                } else {
+                    // Si pas de texte direct, vérifier le code pour compatibilité
+                    const code = urlParams.get('code');
+                    if (code) {
+                        // Vérifier si le texte est stocké localement avec ce code
+                        const text = localStorage.getItem(`text_${code}`);
+                        if (text) {
+                            textInput.value = text;
+                            showStatus('Texte chargé depuis le code local!', 'success');
+                        } else {
+                            showStatus('Code valide mais texte non trouvé sur cet appareil', 'error');
+                        }
                     }
                 }
             }
             
             // Vérifier l'URL au chargement
-            checkUrlForCode();
+            checkUrlForText();
 
             // Générer un code
             generateBtn.addEventListener('click', function() {
@@ -359,12 +374,57 @@
                     // Générer un code simple de 3 caractères (lettres et chiffres)
                     const code = generateSimpleCode();
                     
-                    // Sauvegarder le texte avec ce code
+                    // Encoder le texte pour l'URL (limité à 1000 caractères)
+                    let encodedText = encodeURIComponent(text.substring(0, 1000));
+                    if (text.length > 1000) {
+                        showStatus('Texte tronqué à 1000 caractères pour le partage URL', 'warning');
+                    }
+                    
+                    // Créer l'URL complète avec le code et le texte
+                    const currentUrl = window.location.href.split('?')[0];
+                    const urlForSharing = `${currentUrl}?code=${code}&text=${encodedText}`;
+                    
+                    // Sauvegarder le texte avec ce code (pour compatibilité)
                     localStorage.setItem(`text_${code}`, text);
                     
                     // Afficher le code
                     generatedCode.textContent = code;
                     codeContainer.style.display = 'block';
+                    
+                    // Afficher l'URL complète
+                    const urlInfoElement = document.createElement('div');
+                    urlInfoElement.style.fontSize = '12px';
+                    urlInfoElement.style.marginTop = '10px';
+                    urlInfoElement.style.wordBreak = 'break-all';
+                    urlInfoElement.innerHTML = `<strong>URL à partager:</strong><br>${urlForSharing}`;
+                    
+                    // Ajouter un bouton pour copier l'URL
+                    const copyUrlButton = document.createElement('button');
+                    copyUrlButton.textContent = 'Copier l\'URL';
+                    copyUrlButton.className = 'success';
+                    copyUrlButton.style.marginTop = '10px';
+                    copyUrlButton.style.fontSize = '14px';
+                    copyUrlButton.onclick = function() {
+                        navigator.clipboard.writeText(urlForSharing).then(function() {
+                            showStatus('URL copiée dans le presse-papiers!', 'success');
+                        }, function() {
+                            showStatus('Impossible de copier l\'URL', 'error');
+                        });
+                    };
+                    
+                    // Remplacer le contenu précédent
+                    const codeInfo = document.getElementById('codeInfo');
+                    if (codeInfo) {
+                        codeInfo.innerHTML = '';
+                        codeInfo.appendChild(urlInfoElement);
+                        codeInfo.appendChild(copyUrlButton);
+                    } else {
+                        const newCodeInfo = document.createElement('div');
+                        newCodeInfo.id = 'codeInfo';
+                        newCodeInfo.appendChild(urlInfoElement);
+                        newCodeInfo.appendChild(copyUrlButton);
+                        codeContainer.appendChild(newCodeInfo);
+                    }
                     
                     showStatus('Code généré: ' + code, 'success');
                 } catch (error) {
@@ -418,9 +478,16 @@
                     // Sauvegarder le texte avec ce code
                     localStorage.setItem(`text_${code}`, text);
                     
-                    // Créer l'URL avec le site déployé et le code en paramètre
+                    // Encoder directement le texte dans l'URL plutôt que d'utiliser un code
+                    // Limiter la taille pour éviter des URLs trop longues
+                    let encodedText = encodeURIComponent(text.substring(0, 500));
+                    if (text.length > 500) {
+                        showStatus('Texte tronqué à 500 caractères pour le QR code', 'warning');
+                    }
+                    
+                    // Créer l'URL avec le site déployé et le texte en paramètre
                     const deployedUrl = "https://copytext-tau.vercel.app";
-                    const urlWithParams = `${deployedUrl}?code=${code}`;
+                    const urlWithParams = `${deployedUrl}?text=${encodedText}`;
                     
                     console.log("URL pour QR code:", urlWithParams);
                     
