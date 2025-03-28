@@ -213,7 +213,7 @@
 <body>
     <header>
         <h1>TextShare</h1>
-        <p class="subtitle">Échangez et sauvegardez du texte simplement, sans compte, gratuitement</p>
+        <p class="subtitle">Échangez et sauvegardez du texte simplement avec des codes mémorisables</p>
     </header>
 
     <main>
@@ -255,9 +255,10 @@
                 <h3>Comment ça marche :</h3>
                 <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
                     <li>Copiez votre texte dans la zone de texte ci-dessus</li>
-                    <li>Cliquez sur "Générer un code" pour créer un code unique</li>
-                    <li>Copiez ce code et partagez-le</li>
-                    <li>Sur un autre appareil, collez le code dans la zone "Entrez un code" et cliquez sur "Charger"</li>
+                    <li>Cliquez sur "Générer un code" pour créer un code mémorisable (trois mots séparés par des tirets)</li>
+                    <li>Notez ou mémorisez ce code simple et partagez-le</li>
+                    <li>Sur un autre appareil, saisissez le code dans la zone "Entrez un code" et cliquez sur "Charger"</li>
+                    <li>Remarque : les codes sont stockés localement sur chaque appareil, et ne fonctionnent que sur le même navigateur</li>
                     <li>Vous pouvez aussi sauvegarder des textes localement pour y accéder plus tard sur le même appareil</li>
                 </ol>
             </div>
@@ -301,14 +302,31 @@
                 }
 
                 try {
-                    // Encode le texte en Base64 en utilisant notre fonction sécurisée
-                    const encodedText = safeEncode(text);
+                    // Crée un hash court du contenu pour l'identification
+                    const hash = createShortHash(text);
                     
-                    // Génère un identifiant court
-                    const shortId = generateShortId();
+                    // Génère un identifiant mémorisable à base de mots
+                    const wordId = generateShortId();
                     
-                    // Combine l'ID et le texte encodé
-                    const fullCode = `${shortId}-${encodedText}`;
+                    // Stocke le texte dans le localStorage avec une référence temporaire
+                    const storageKey = `shared_text_${hash}`;
+                    localStorage.setItem(storageKey, text);
+                    
+                    // On associe l'ID mémorisable avec le hash
+                    const codeMapKey = 'code_mapping';
+                    let codeMap = JSON.parse(localStorage.getItem(codeMapKey)) || {};
+                    codeMap[wordId] = hash;
+                    
+                    // On limite le nombre de codes stockés à 50
+                    const codeKeys = Object.keys(codeMap);
+                    if (codeKeys.length > 50) {
+                        delete codeMap[codeKeys[0]];
+                    }
+                    
+                    localStorage.setItem(codeMapKey, JSON.stringify(codeMap));
+                    
+                    // Combine l'ID et le hash pour générer un code mémorisable
+                    const fullCode = wordId;
                     
                     // Affiche le code
                     generatedCode.textContent = fullCode;
@@ -341,23 +359,31 @@
                 }
 
                 try {
-                    // Sépare l'ID et le texte encodé
-                    const parts = code.split('-');
-                    if (parts.length < 2) {
-                        throw new Error('Format de code invalide');
+                    // Récupère le mapping de codes
+                    const codeMapKey = 'code_mapping';
+                    const codeMap = JSON.parse(localStorage.getItem(codeMapKey)) || {};
+                    
+                    // Vérifie si le code existe dans le mapping
+                    if (!codeMap[code]) {
+                        throw new Error('Code introuvable');
                     }
                     
-                    // Récupère le texte encodé (tout après le premier tiret)
-                    const encodedText = parts.slice(1).join('-');
+                    // Récupère le hash associé au code
+                    const hash = codeMap[code];
                     
-                    // Décode le texte en utilisant notre fonction sécurisée
-                    const decodedText = safeDecode(encodedText);
+                    // Récupère le texte à partir du hash
+                    const storageKey = `shared_text_${hash}`;
+                    const text = localStorage.getItem(storageKey);
+                    
+                    if (!text) {
+                        throw new Error('Texte introuvable');
+                    }
                     
                     // Affiche le texte dans la zone de texte
-                    textInput.value = decodedText;
+                    textInput.value = text;
                     showStatus('Texte chargé avec succès!', 'success');
                 } catch (error) {
-                    showStatus('Code invalide ou corrompu', 'error');
+                    showStatus('Code invalide ou expiré', 'error');
                     console.error(error);
                 }
             });
@@ -384,34 +410,48 @@
                 showStatus('Texte effacé', 'success');
             });
 
-            // Fonction pour générer un ID court
+            // Fonction pour générer un ID mémorisable à base de mots
             function generateShortId() {
-                const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                let result = '';
-                for (let i = 0; i < 6; i++) {
-                    result += characters.charAt(Math.floor(Math.random() * characters.length));
+                // Liste de mots simples et courts pour la mémorisation
+                const words = [
+                    // Couleurs
+                    "rouge", "bleu", "vert", "noir", "blanc", "jaune", "rose", "gris", "orange", "violet",
+                    // Animaux
+                    "chat", "chien", "lion", "tigre", "ours", "loup", "aigle", "dauphin", "poisson", "renard",
+                    // Fruits
+                    "pomme", "poire", "orange", "banane", "fraise", "raisin", "citron", "kiwi", "melon", "prune",
+                    // Objets
+                    "livre", "table", "porte", "tasse", "crayon", "lampe", "clef", "montre", "photo", "verre",
+                    // Nature
+                    "arbre", "fleur", "lac", "mer", "ciel", "nuage", "pluie", "soleil", "lune", "neige",
+                    // Nombres (écrits)
+                    "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix"
+                ];
+                
+                // Sélectionne 3 mots aléatoires
+                let result = [];
+                for (let i = 0; i < 3; i++) {
+                    const randomIndex = Math.floor(Math.random() * words.length);
+                    result.push(words[randomIndex]);
                 }
-                return result;
+                
+                // Joindre avec des tirets
+                return result.join("-");
             }
             
-            // Fonction sécurisée pour l'encodage en Base64 qui gère les caractères Unicode
-            function safeEncode(text) {
-                try {
-                    return btoa(unescape(encodeURIComponent(text)));
-                } catch (e) {
-                    console.error("Erreur d'encodage:", e);
-                    throw e;
+            // Fonction pour créer un hash court à partir d'un texte
+            function createShortHash(text) {
+                let hash = 0;
+                if (text.length === 0) return hash.toString(36);
+                
+                for (let i = 0; i < text.length; i++) {
+                    const char = text.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convertit en entier 32 bits
                 }
-            }
-            
-            // Fonction sécurisée pour le décodage Base64 qui gère les caractères Unicode
-            function safeDecode(encoded) {
-                try {
-                    return decodeURIComponent(escape(atob(encoded)));
-                } catch (e) {
-                    console.error("Erreur de décodage:", e);
-                    throw e;
-                }
+                
+                // Convertit en base36 (0-9, a-z) pour raccourcir et ajoute un timestamp pour l'unicité
+                return Math.abs(hash).toString(36) + Date.now().toString(36).slice(-4);
             }
 
             // Fonction pour afficher un message de statut
